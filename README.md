@@ -4,5 +4,7 @@ Clean messy databases, forecast probability of defaults and return rates in fund
 
 
 Data from (i) Banco Central e (ii) CVM:
+
   (i) https://www3.bcb.gov.br/ifdata/
+
   (ii) http://dados.cvm.gov.br/dataset/fidc-doc-inf_mensal
