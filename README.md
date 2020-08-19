@@ -1,4 +1,4 @@
-Cool stuffs with databases from brazilian finance markets. 
+Cool data science projects using Python +3 and R with databases from brazilian finance markets. 
 
 Clean messy databases, forecast probability of defaults and return rates in funds and banks.
 
