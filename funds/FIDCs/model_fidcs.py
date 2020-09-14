@@ -16,6 +16,8 @@ import sys
 import ipeadatapy as ipea
 import seaborn as sns
 import matplotlib.pyplot as plt
+import statsmodels.api as sm
+from scipy import stats
 
 import sklearn
 from sklearn.model_selection import train_test_split
@@ -69,7 +71,6 @@ def open_dfs():
     print('Bases Abertas com sucesso!')
     
     return df_fidc, df_rating
-
 
 
 
@@ -482,305 +483,304 @@ def model_df(df_merged):
             
 
 
-
-       #  ################ OLS #############
-       #  print('CALCULAR OLS')
-       #  print('#########################', number)
-
-       #  model = LinearRegression()
-       #  model_fit = model.fit(X_train, Y_train)
+        ################ OLS #############
+        print('CALCULAR OLS')
+        print('#########################', number)
+      
+        model = LinearRegression()
+        model_fit = model.fit(X_train, Y_train)
         
-       #  # train_var['Y'] = list(Y_train.Y)
-       #  train_var['Pred_OLS'] = [item[0] for item in model_fit.predict(X_train)]
-     
-       #  # test_var['Y'] = list(Y_test.Y)
-       #  test_var['Pred_OLS'] = [item[0] for item in model_fit.predict(X_test)]
-     
-       #  lf_metrics_dfs_aux = pd.DataFrame({'R2_train': r2_score(Y_train.Y, train_var.Pred_OLS),
-       #                                    'R2_test':   r2_score(Y_test.Y, test_var.Pred_OLS),
-       #                                    'MSE_train': mean_squared_error(Y_train.Y, train_var.Pred_OLS),
-       #                                    'MSE_test':  mean_squared_error(Y_test.Y, test_var.Pred_OLS),
-       #                                    'MAE_train': mean_absolute_error(Y_train.Y, train_var.Pred_OLS),
-       #                                    'MAE_test':  mean_absolute_error(Y_test.Y, test_var.Pred_OLS)},
-       #                                   index=[str(number)])
+        # train_var['Y'] = list(Y_train.Y)
+        train_var['Pred_OLS'] = [item[0] for item in model_fit.predict(X_train)]
+        
+        # test_var['Y'] = list(Y_test.Y)
+        test_var['Pred_OLS'] = [item[0] for item in model_fit.predict(X_test)]
+        
+        lf_metrics_dfs_aux = pd.DataFrame({'R2_train': r2_score(Y_train.Y, train_var.Pred_OLS),
+                                           'R2_test':   r2_score(Y_test.Y, test_var.Pred_OLS),
+                                           'MSE_train': mean_squared_error(Y_train.Y, train_var.Pred_OLS),
+                                           'MSE_test':  mean_squared_error(Y_test.Y, test_var.Pred_OLS),
+                                           'MAE_train': mean_absolute_error(Y_train.Y, train_var.Pred_OLS),
+                                           'MAE_test':  mean_absolute_error(Y_test.Y, test_var.Pred_OLS)},
+                                          index=[str(number)])
+        
+        lf_metrics_df = lf_metrics_df.append(lf_metrics_dfs_aux)
+        
+        lr_dict['OLS'].update({number:{}})
+        lr_dict['OLS'][number].update({'train_index':train_index,'test_index':test_index })
+        
+        
+        ############## LASSO #############
+        print('CALCULAR LASSO')
+        param_grid = {'alpha': [1e-15, 1e-10, 1e-5, 1e-2,1e-1, 1, 5, 10]}
+        lasso_grid = GridSearchCV(Lasso(copy_X=True, fit_intercept=True, max_iter=1000, positive=False, normalize=True),
+                                  param_grid, cv=5).fit(X_train, Y_train)
+        
+        alpha = lasso_grid.best_estimator_.alpha
+        print('Melhor alpha foi ', alpha)
+        
+        model = Lasso(copy_X=True, fit_intercept=True, max_iter=1000, positive=False, normalize=True, alpha=alpha)
+        model_fit = model.fit(X_train, Y_train)
+        
+        
+        
+        # train_var['Y'] = list(Y_train.Y)
+        train_var['Pred_LASSO'] = [item for item in model_fit.predict(X_train)]
+        
+        # test_var['Y'] = list(Y_test.Y)
+        test_var['Pred_LASSO'] = [item for item in model_fit.predict(X_test)]
+        
+        lasso_metrics_df_aux = pd.DataFrame({'R2_train': r2_score(Y_train.Y, train_var.Pred_LASSO),
+                                             'R2_test':  r2_score(Y_test.Y, test_var.Pred_LASSO),
+                                             'MSE_train': mean_squared_error(Y_train.Y, train_var.Pred_LASSO),
+                                             'MSE_test':  mean_squared_error(Y_test.Y, test_var.Pred_LASSO),
+                                             'MAE_train': mean_absolute_error(Y_train.Y, train_var.Pred_LASSO),
+                                             'MAE_test':  mean_absolute_error(Y_test.Y, test_var.Pred_LASSO)},
+                                            index=[str(number)])
+        
+        lasso_metrics_df = lasso_metrics_df.append(lasso_metrics_df_aux)
+        
+        lr_dict['LASSO'].update({number:{}})
+        lr_dict['LASSO'][number].update({'train_index':train_index,'test_index':test_index })
+        
+        
+        ############## LARS ###########
+        print('CALCULAR LARS')
+        print('#########################', number)
+        param_grid = {'eps': [1e-15, 1e-10, 1e-5, 1e-2,1e-1, 1, 5, 10, 20],
+                      'n_nonzero_coefs':[1,10,50,100,300, 380]}
+        lars_grid = GridSearchCV(Lars(fit_intercept=True, verbose=True, normalize=True,
+                                      copy_X=True, fit_path=True),
+                                 param_grid, cv=5).fit(X_train, Y_train)
+        
+        eps = lars_grid.best_estimator_.eps
+        nzero = lars_grid.best_estimator_.n_nonzero_coefs
+        print('Melhor eps foi ', eps)
+        
+        model =Lars(fit_intercept=True, verbose=True, normalize=True,
+                    copy_X=True, fit_path=True, eps=eps, n_nonzero_coefs=nzero)
+        model_fit = model.fit(X_train, Y_train)
+        
+        # train_var['Y'] = list(Y_train.Y)
+        train_var['Pred_LARS'] = [item for item in model_fit.predict(X_train)]
+        
+        # test_var['Y'] = list(Y_test.Y)
+        test_var['Pred_LARS'] = [item for item in model_fit.predict(X_test)]
+        
+        lars_metrics_df_aux = pd.DataFrame({'R2_train': r2_score(Y_train.Y, train_var.Pred_LARS),
+                                            'R2_test':  r2_score(Y_test.Y, test_var.Pred_LARS),
+                                            'MSE_train': mean_squared_error(Y_train.Y, train_var.Pred_LARS),
+                                            'MSE_test':  mean_squared_error(Y_test.Y, test_var.Pred_LARS),
+                                            'MAE_train': mean_absolute_error(Y_train.Y, train_var.Pred_LARS),
+                                            'MAE_test':  mean_absolute_error(Y_test.Y, test_var.Pred_LARS)},
+                                           index=[str(number)])
+        
+        lars_metrics_df = lars_metrics_df.append(lars_metrics_df_aux)
+        
+        lr_dict['LARS'].update({number:{}})
+        lr_dict['LARS'][number].update({'train_index':train_index,'test_index':test_index })
+        
+        
+        
+        
+        ############## LASSO LARS ###########
+        print('CALCULAR LASSO LARS')
+        param_grid = {'eps': [1e-20, 1e-15, 1e-8,1e-3,1,5,10,20],
+                      'alpha':[1e-10,1e-8,1e-2,1,2,5,10]}
+        lassolars_grid = GridSearchCV(LassoLars(fit_intercept=True, verbose=False, normalize=True, 
+                                                max_iter=500, copy_X=True,fit_path=True, positive=False),
+                                      param_grid, cv=5).fit(X_train, Y_train)
+        
+        eps = lassolars_grid.best_estimator_.eps
+        alpha = lassolars_grid.best_estimator_.alpha
+        print('Melhor eps  e alpha foram ', eps, alpha)
+        
+        model = LassoLars(fit_intercept=True, verbose=False, normalize=True, 
+                          max_iter=500, copy_X=True,fit_path=True, positive=False,
+                          alpha=alpha, eps=eps)
+        model_fit = model.fit(X_train, Y_train)
+        
+        # train_var['Y'] = list(Y_train.Y)
+        train_var['Pred_LASSOLARS'] = [item for item in model_fit.predict(X_train)]
+        
+        # test_var['Y'] = list(Y_test.Y)
+        test_var['Pred_LASSOLARS'] = [item for item in model_fit.predict(X_test)]
+        
+        lassolars_metrics_df_aux = pd.DataFrame({'R2_train': r2_score(Y_train.Y, train_var.Pred_LASSOLARS),
+                                                 'R2_test':  r2_score(Y_test.Y, test_var.Pred_LASSOLARS),
+                                                 'MSE_train': mean_squared_error(Y_train.Y, train_var.Pred_LASSOLARS),
+                                                 'MSE_test':  mean_squared_error(Y_test.Y, test_var.Pred_LASSOLARS),
+                                                 'MAE_train': mean_absolute_error(Y_train.Y, train_var.Pred_LASSOLARS),
+                                                 'MAE_test':  mean_absolute_error(Y_test.Y, test_var.Pred_LASSOLARS)},
+                                                index=[str(number)])
+        
+        lassolars_metrics_df = lassolars_metrics_df.append(lassolars_metrics_df_aux)
+        
+        lr_dict['LASSOLARS'].update({number:{}})
+        lr_dict['LASSOLARS'][number].update({'train_index':train_index,'test_index':test_index })
+        
+        
+        ############## RIDGE ###########
+        print('CALCULAR RIDGE')
+        print('#########################', number)
+        
+        param_grid = {'alpha':[1e-15, 1e-10, 1e-8, 1e-5, 1e-3,1e-2,1e-1, 1, 5, 10,20,50,100,200]}
+        ridge_grid = GridSearchCV(Ridge(fit_intercept=True, normalize=True, copy_X=True, 
+                                        max_iter=None, tol=0.001, random_state=None),
+                                  param_grid, cv=5).fit(X_train, Y_train)
+        
+        alpha = ridge_grid.best_estimator_.alpha
+        print('Melhor alpha foi ', alpha)
+        
+        model = Ridge(fit_intercept=True, normalize=True, copy_X=True, 
+                      max_iter=None, tol=0.001, random_state=None,
+                      alpha=alpha)
+        model_fit = model.fit(X_train, Y_train)
+        
+        # train_var['Y'] = list(Y_train.Y)
+        train_var['Pred_RIDGE'] = [item for item in model_fit.predict(X_train)]
+        
+        # test_var['Y'] = list(Y_test.Y)
+        test_var['Pred_RIDGE'] = [item for item in model_fit.predict(X_test)]
+        
+        ridge_metrics_df_aux = pd.DataFrame({'R2_train': r2_score(Y_train.Y, train_var.Pred_RIDGE),
+                                             'R2_test':  r2_score(Y_test.Y, test_var.Pred_RIDGE),
+                                             'MSE_train': mean_squared_error(Y_train.Y, train_var.Pred_RIDGE),
+                                             'MSE_test':  mean_squared_error(Y_test.Y, test_var.Pred_RIDGE),
+                                             'MAE_train': mean_absolute_error(Y_train.Y, train_var.Pred_RIDGE),
+                                             'MAE_test':  mean_absolute_error(Y_test.Y, test_var.Pred_RIDGE)},
+                                            index=[str(number)])
+        
+        ridge_metrics_df = ridge_metrics_df.append(ridge_metrics_df_aux)
+        
+        lr_dict['RIDGE'].update({number:{}})
+        lr_dict['RIDGE'][number].update({'train_index':train_index,'test_index':test_index })
+        
+        
+        
+        
+        ############## ELASTIC NET ###########
+        print('CALCULAR ELASTICNET')
+        param_grid = {'alpha':[1e-15,1e-10, 1e-5,1e-2, 1, 5,20],
+                      'l1_ratio':[0.01,0.25,0.5,0.75,0.99]}
+        en_grid = GridSearchCV(ElasticNet(fit_intercept=True, normalize=True, 
+                                          precompute=False, max_iter=500, copy_X=True, tol=0.0001, 
+                                          warm_start=False, positive=False, random_state=None),
+                                   param_grid, cv=5).fit(X_train, Y_train)
+        
+        alpha = en_grid.best_estimator_.alpha
+        ratio = en_grid.best_estimator_.l1_ratio
+        print('Melhor alpha e ratio foram ', alpha, ratio)
+        
+        model = ElasticNet(fit_intercept=True, normalize=True, 
+                           precompute=False, max_iter=1000, copy_X=True, tol=0.0001, 
+                           warm_start=False, positive=False, random_state=None,
+                           alpha=alpha, l1_ratio=ratio)
+        model_fit = model.fit(X_train, Y_train)
+        
+        # train_var['Y'] = list(Y_train.Y)
+        train_var['Pred_EN'] = [item for item in model_fit.predict(X_train)]
+        
+        # test_var['Y'] = list(Y_test.Y)
+        test_var['Pred_EN'] = [item for item in model_fit.predict(X_test)]
+        
+        elasticnet_metrics_df_aux = pd.DataFrame({'R2_train': r2_score(Y_train.Y, train_var.Pred_EN),
+                                                  'R2_test':  r2_score(Y_test.Y, test_var.Pred_EN),
+                                                  'MSE_train': mean_squared_error(Y_train.Y, train_var.Pred_EN),
+                                                  'MSE_test':  mean_squared_error(Y_test.Y, test_var.Pred_EN),
+                                                  'MAE_train': mean_absolute_error(Y_train.Y, train_var.Pred_EN),
+                                                  'MAE_test':  mean_absolute_error(Y_test.Y, test_var.Pred_EN)},
+                                                 index=[str(number)])
+        
+        elasticnet_metrics_df = elasticnet_metrics_df.append(elasticnet_metrics_df_aux)
+        
+        lr_dict['EN'].update({number:{}})
+        lr_dict['EN'][number].update({'train_index':train_index,'test_index':test_index })
+            
+            
+            
+        ############## RANDOM FOREST   ###########
+        print('CALCULAR RANDOMFOREST')
+        
+        RandomForestRegressor().get_params()
+        param_grid = {'bootstrap': [True],
+                      'n_estimators': [10, 200, 500, 1000]}
     
-       #  lf_metrics_df = lf_metrics_df.append(lf_metrics_dfs_aux)
         
-       #  lr_dict['OLS'].update({number:{}})
-       #  lr_dict['OLS'][number].update({'train_index':train_index,'test_index':test_index })
-        
-        
-       #  ############## LASSO #############
-       #  print('CALCULAR LASSO')
-       #  param_grid = {'alpha': [1e-15, 1e-10, 1e-5, 1e-2,1e-1, 1, 5, 10]}
-       #  lasso_grid = GridSearchCV(Lasso(copy_X=True, fit_intercept=True, max_iter=1000, positive=False, normalize=True),
-       #                            param_grid, cv=5).fit(X_train, Y_train)
-        
-       #  alpha = lasso_grid.best_estimator_.alpha
-       #  print('Melhor alpha foi ', alpha)
-
-       #  model = Lasso(copy_X=True, fit_intercept=True, max_iter=1000, positive=False, normalize=True, alpha=alpha)
-       #  model_fit = model.fit(X_train, Y_train)
-
-        
-
-       #  # train_var['Y'] = list(Y_train.Y)
-       #  train_var['Pred_LASSO'] = [item for item in model_fit.predict(X_train)]
-     
-       #  # test_var['Y'] = list(Y_test.Y)
-       #  test_var['Pred_LASSO'] = [item for item in model_fit.predict(X_test)]
-     
-       #  lasso_metrics_df_aux = pd.DataFrame({'R2_train': r2_score(Y_train.Y, train_var.Pred_LASSO),
-       #                                    'R2_test':  r2_score(Y_test.Y, test_var.Pred_LASSO),
-       #                                    'MSE_train': mean_squared_error(Y_train.Y, train_var.Pred_LASSO),
-       #                                    'MSE_test':  mean_squared_error(Y_test.Y, test_var.Pred_LASSO),
-       #                                    'MAE_train': mean_absolute_error(Y_train.Y, train_var.Pred_LASSO),
-       #                                    'MAE_test':  mean_absolute_error(Y_test.Y, test_var.Pred_LASSO)},
-       #                                   index=[str(number)])
-    
-       #  lasso_metrics_df = lasso_metrics_df.append(lasso_metrics_df_aux)
-        
-       #  lr_dict['LASSO'].update({number:{}})
-       #  lr_dict['LASSO'][number].update({'train_index':train_index,'test_index':test_index })
-
-
-       #  ############## LARS ###########
-       #  print('CALCULAR LARS')
-       #  print('#########################', number)
-       #  param_grid = {'eps': [1e-15, 1e-10, 1e-5, 1e-2,1e-1, 1, 5, 10, 20],
-       #                'n_nonzero_coefs':[1,10,50,100,300, 380]}
-       #  lars_grid = GridSearchCV(Lars(fit_intercept=True, verbose=True, normalize=True,
-       #                                copy_X=True, fit_path=True),
-       #                            param_grid, cv=5).fit(X_train, Y_train)
-        
-       #  eps = lars_grid.best_estimator_.eps
-       #  nzero = lars_grid.best_estimator_.n_nonzero_coefs
-       #  print('Melhor eps foi ', eps)
-
-       #  model =Lars(fit_intercept=True, verbose=True, normalize=True,
-       #              copy_X=True, fit_path=True, eps=eps, n_nonzero_coefs=nzero)
-       #  model_fit = model.fit(X_train, Y_train)
-
-       #  # train_var['Y'] = list(Y_train.Y)
-       #  train_var['Pred_LARS'] = [item for item in model_fit.predict(X_train)]
-     
-       #  # test_var['Y'] = list(Y_test.Y)
-       #  test_var['Pred_LARS'] = [item for item in model_fit.predict(X_test)]
-     
-       #  lars_metrics_df_aux = pd.DataFrame({'R2_train': r2_score(Y_train.Y, train_var.Pred_LARS),
-       #                                    'R2_test':  r2_score(Y_test.Y, test_var.Pred_LARS),
-       #                                    'MSE_train': mean_squared_error(Y_train.Y, train_var.Pred_LARS),
-       #                                    'MSE_test':  mean_squared_error(Y_test.Y, test_var.Pred_LARS),
-       #                                    'MAE_train': mean_absolute_error(Y_train.Y, train_var.Pred_LARS),
-       #                                    'MAE_test':  mean_absolute_error(Y_test.Y, test_var.Pred_LARS)},
-       #                                   index=[str(number)])
-    
-       #  lars_metrics_df = lars_metrics_df.append(lars_metrics_df_aux)
-        
-       #  lr_dict['LARS'].update({number:{}})
-       #  lr_dict['LARS'][number].update({'train_index':train_index,'test_index':test_index })
-
-
-
-
-       # ############## LASSO LARS ###########
-       #  print('CALCULAR LASSO LARS')
-       #  param_grid = {'eps': [1e-20, 1e-15, 1e-8,1e-3,1,5,10,20],
-       #                'alpha':[1e-10,1e-8,1e-2,1,2,5,10]}
-       #  lassolars_grid = GridSearchCV(LassoLars(fit_intercept=True, verbose=False, normalize=True, 
-       #                                     max_iter=500, copy_X=True,fit_path=True, positive=False),
-       #                            param_grid, cv=5).fit(X_train, Y_train)
-        
-       #  eps = lassolars_grid.best_estimator_.eps
-       #  alpha = lassolars_grid.best_estimator_.alpha
-       #  print('Melhor eps  e alpha foram ', eps, alpha)
-
-       #  model = LassoLars(fit_intercept=True, verbose=False, normalize=True, 
-       #                    max_iter=500, copy_X=True,fit_path=True, positive=False,
-       #                    alpha=alpha, eps=eps)
-       #  model_fit = model.fit(X_train, Y_train)
-
-       #  # train_var['Y'] = list(Y_train.Y)
-       #  train_var['Pred_LASSOLARS'] = [item for item in model_fit.predict(X_train)]
-     
-       #  # test_var['Y'] = list(Y_test.Y)
-       #  test_var['Pred_LASSOLARS'] = [item for item in model_fit.predict(X_test)]
-     
-       #  lassolars_metrics_df_aux = pd.DataFrame({'R2_train': r2_score(Y_train.Y, train_var.Pred_LASSOLARS),
-       #                                        'R2_test':  r2_score(Y_test.Y, test_var.Pred_LASSOLARS),
-       #                                        'MSE_train': mean_squared_error(Y_train.Y, train_var.Pred_LASSOLARS),
-       #                                        'MSE_test':  mean_squared_error(Y_test.Y, test_var.Pred_LASSOLARS),
-       #                                        'MAE_train': mean_absolute_error(Y_train.Y, train_var.Pred_LASSOLARS),
-       #                                        'MAE_test':  mean_absolute_error(Y_test.Y, test_var.Pred_LASSOLARS)},
-       #                                       index=[str(number)])
-        
-       #  lassolars_metrics_df = lassolars_metrics_df.append(lassolars_metrics_df_aux)
-        
-       #  lr_dict['LASSOLARS'].update({number:{}})
-       #  lr_dict['LASSOLARS'][number].update({'train_index':train_index,'test_index':test_index })
-
-         
-       #  ############## RIDGE ###########
-       #  print('CALCULAR RIDGE')
-       #  print('#########################', number)
-
-       #  param_grid = {'alpha':[1e-15, 1e-10, 1e-8, 1e-5, 1e-3,1e-2,1e-1, 1, 5, 10,20,50,100,200]}
-       #  ridge_grid = GridSearchCV(Ridge(fit_intercept=True, normalize=True, copy_X=True, 
-       #                                  max_iter=None, tol=0.001, random_state=None),
-       #                            param_grid, cv=5).fit(X_train, Y_train)
-        
-       #  alpha = ridge_grid.best_estimator_.alpha
-       #  print('Melhor alpha foi ', alpha)
-
-       #  model = Ridge(fit_intercept=True, normalize=True, copy_X=True, 
-       #               max_iter=None, tol=0.001, random_state=None,
-       #               alpha=alpha)
-       #  model_fit = model.fit(X_train, Y_train)
-
-       #  # train_var['Y'] = list(Y_train.Y)
-       #  train_var['Pred_RIDGE'] = [item for item in model_fit.predict(X_train)]
-     
-       #  # test_var['Y'] = list(Y_test.Y)
-       #  test_var['Pred_RIDGE'] = [item for item in model_fit.predict(X_test)]
-     
-       #  ridge_metrics_df_aux = pd.DataFrame({'R2_train': r2_score(Y_train.Y, train_var.Pred_RIDGE),
-       #                                        'R2_test':  r2_score(Y_test.Y, test_var.Pred_RIDGE),
-       #                                        'MSE_train': mean_squared_error(Y_train.Y, train_var.Pred_RIDGE),
-       #                                        'MSE_test':  mean_squared_error(Y_test.Y, test_var.Pred_RIDGE),
-       #                                        'MAE_train': mean_absolute_error(Y_train.Y, train_var.Pred_RIDGE),
-       #                                        'MAE_test':  mean_absolute_error(Y_test.Y, test_var.Pred_RIDGE)},
-       #                                       index=[str(number)])
-        
-       #  ridge_metrics_df = ridge_metrics_df.append(ridge_metrics_df_aux)
-        
-       #  lr_dict['RIDGE'].update({number:{}})
-       #  lr_dict['RIDGE'][number].update({'train_index':train_index,'test_index':test_index })
-
-
- 
-
-       #  ############## ELASTIC NET ###########
-       #  print('CALCULAR ELASTICNET')
-       #  param_grid = {'alpha':[1e-15,1e-10, 1e-5,1e-2, 1, 5,20],
-       #               'l1_ratio':[0.01,0.25,0.5,0.75,0.99]}
-       #  en_grid = GridSearchCV(ElasticNet(fit_intercept=True, normalize=True, 
-       #                                    precompute=False, max_iter=500, copy_X=True, tol=0.0001, 
-       #                                    warm_start=False, positive=False, random_state=None),
-       #                            param_grid, cv=5).fit(X_train, Y_train)
-        
-       #  alpha = en_grid.best_estimator_.alpha
-       #  ratio = en_grid.best_estimator_.l1_ratio
-       #  print('Melhor alpha e ratio foram ', alpha, ratio)
-
-       #  model = ElasticNet(fit_intercept=True, normalize=True, 
-       #                     precompute=False, max_iter=1000, copy_X=True, tol=0.0001, 
-       #                     warm_start=False, positive=False, random_state=None,
-       #                     alpha=alpha, l1_ratio=ratio)
-       #  model_fit = model.fit(X_train, Y_train)
-
-       #  # train_var['Y'] = list(Y_train.Y)
-       #  train_var['Pred_EN'] = [item for item in model_fit.predict(X_train)]
-     
-       #  # test_var['Y'] = list(Y_test.Y)
-       #  test_var['Pred_EN'] = [item for item in model_fit.predict(X_test)]
-     
-       #  elasticnet_metrics_df_aux = pd.DataFrame({'R2_train': r2_score(Y_train.Y, train_var.Pred_EN),
-       #                                        'R2_test':  r2_score(Y_test.Y, test_var.Pred_EN),
-       #                                        'MSE_train': mean_squared_error(Y_train.Y, train_var.Pred_EN),
-       #                                        'MSE_test':  mean_squared_error(Y_test.Y, test_var.Pred_EN),
-       #                                        'MAE_train': mean_absolute_error(Y_train.Y, train_var.Pred_EN),
-       #                                        'MAE_test':  mean_absolute_error(Y_test.Y, test_var.Pred_EN)},
-       #                                       index=[str(number)])
-        
-       #  elasticnet_metrics_df = elasticnet_metrics_df.append(elasticnet_metrics_df_aux)
-        
-       #  lr_dict['EN'].update({number:{}})
-       #  lr_dict['EN'][number].update({'train_index':train_index,'test_index':test_index })
-        
-        
-        
-        #  ############## RANDOM FOREST   ###########
-        # print('CALCULAR RANDOMFOREST')
-        
-        # RandomForestRegressor().get_params()
-        # param_grid = {'bootstrap': [True],
-        #              'n_estimators': [10, 200, 500, 1000]}
-    
-        
-        # rf_grid = GridSearchCV(RandomForestRegressor(oob_score=False, random_state=None, 
-        #                         verbose=True, warm_start=False),
-        #                        param_grid, cv=5).fit(X_train, Y_train)
+        rf_grid = GridSearchCV(RandomForestRegressor(oob_score=False, random_state=None, 
+                                verbose=True, warm_start=False),
+                                param_grid, cv=5).fit(X_train, Y_train)
    
         
-        # bootstrap = rf_grid.best_estimator_.bootstrap
-        # # max_features = rf_grid.best_estimator_.max_features
-        # n_estimators = rf_grid.best_estimator_.n_estimators
+        bootstrap = rf_grid.best_estimator_.bootstrap
+        # max_features = rf_grid.best_estimator_.max_features
+        n_estimators = rf_grid.best_estimator_.n_estimators
 
-        # print('Melhor Estimadores , bootstrap, maxfeatforam ', n_estimators, bootstrap)
+        print('Melhor Estimadores , bootstrap, maxfeatforam ', n_estimators, bootstrap)
 
-        # model = RandomForestRegressor(oob_score=False, random_state=None, 
-        #                         verbose=True, warm_start=False,
-        #                         bootstrap=bootstrap, n_estimators=n_estimators)
-        # model_fit = model.fit(X_train, Y_train)
+        model = RandomForestRegressor(oob_score=False, random_state=None, 
+                                verbose=True, warm_start=False,
+                                bootstrap=bootstrap, n_estimators=n_estimators)
+        model_fit = model.fit(X_train, Y_train)
 
-        # # train_var['Y'] = list(Y_train.Y)
-        # train_var['Pred_RF'] = [item for item in model_fit.predict(X_train)]
+        # train_var['Y'] = list(Y_train.Y)
+        train_var['Pred_RF'] = [item for item in model_fit.predict(X_train)]
      
-        # # test_var['Y'] = list(Y_test.Y)
-        # test_var['Pred_RF'] = [item for item in model_fit.predict(X_test)]
+        # test_var['Y'] = list(Y_test.Y)
+        test_var['Pred_RF'] = [item for item in model_fit.predict(X_test)]
      
-        # randomforest_metrics_df_aux = pd.DataFrame({'R2_train': r2_score(Y_train.Y, train_var.Pred_RF),
-        #                                       'R2_test':  r2_score(Y_test.Y, test_var.Pred_RF),
-        #                                       'MSE_train': mean_squared_error(Y_train.Y, train_var.Pred_RF),
-        #                                       'MSE_test':  mean_squared_error(Y_test.Y, test_var.Pred_RF),
-        #                                       'MAE_train': mean_absolute_error(Y_train.Y, train_var.Pred_RF),
-        #                                       'MAE_test':  mean_absolute_error(Y_test.Y, test_var.Pred_RF)},
-        #                                      index=[str(number)])
+        randomforest_metrics_df_aux = pd.DataFrame({'R2_train': r2_score(Y_train.Y, train_var.Pred_RF),
+                                              'R2_test':  r2_score(Y_test.Y, test_var.Pred_RF),
+                                              'MSE_train': mean_squared_error(Y_train.Y, train_var.Pred_RF),
+                                              'MSE_test':  mean_squared_error(Y_test.Y, test_var.Pred_RF),
+                                              'MAE_train': mean_absolute_error(Y_train.Y, train_var.Pred_RF),
+                                              'MAE_test':  mean_absolute_error(Y_test.Y, test_var.Pred_RF)},
+                                              index=[str(number)])
         
-        # randomforest_metrics_df = randomforest_metrics_df.append(randomforest_metrics_df_aux)
+        randomforest_metrics_df = randomforest_metrics_df.append(randomforest_metrics_df_aux)
         
-        # lr_dict['RF'].update({number:{}})
-        # lr_dict['RF'][number].update({'train_index':train_index,'test_index':test_index })
+        lr_dict['RF'].update({number:{}})
+        lr_dict['RF'][number].update({'train_index':train_index,'test_index':test_index })
         
         
-        # ############## BAGGING ###########
-        # print('CALCULAR BAGGING')
+        ############## BAGGING ###########
+        print('CALCULAR BAGGING')
         
-        # param_grid = {'bootstrap': [True],
-        #              'n_estimators': [10, 200, 500, 1000]}
+        param_grid = {'bootstrap': [True],
+                      'n_estimators': [10, 200, 500, 1000]}
   
 
-        # bagging_grid = GridSearchCV(BaggingRegressor(verbose=True),
-        #                        param_grid, cv=5).fit(X_train, Y_train)
+        bagging_grid = GridSearchCV(BaggingRegressor(verbose=True),
+                                param_grid, cv=5).fit(X_train, Y_train)
    
-        # n_estimators = bagging_grid.best_estimator_.n_estimators
-        # bootstrap = bagging_grid.best_estimator_.bootstrap
+        n_estimators = bagging_grid.best_estimator_.n_estimators
+        bootstrap = bagging_grid.best_estimator_.bootstrap
 
-        # print('Melhor Estimadores , max_features, bootstrap ', n_estimators, bootstrap)
+        print('Melhor Estimadores , max_features, bootstrap ', n_estimators, bootstrap)
 
-        # model = BaggingRegressor(verbose=True, n_estimators=n_estimators, bootstrap=bootstrap)
+        model = BaggingRegressor(verbose=True, n_estimators=n_estimators, bootstrap=bootstrap)
         
 
-        # model_fit = model.fit(X_train, Y_train)
+        model_fit = model.fit(X_train, Y_train)
      
-        # # train_var['Y'] = list(Y_train.Y)
-        # train_var['Pred_BAG'] = [item for item in model_fit.predict(X_train)]
+        # train_var['Y'] = list(Y_train.Y)
+        train_var['Pred_BAG'] = [item for item in model_fit.predict(X_train)]
      
-        # # test_var['Y'] = list(Y_test.Y)
-        # test_var['Pred_BAG'] = [item for item in model_fit.predict(X_test)]
+        # test_var['Y'] = list(Y_test.Y)
+        test_var['Pred_BAG'] = [item for item in model_fit.predict(X_test)]
      
-        # bagging_metrics_df_aux = pd.DataFrame({'R2_train': r2_score(Y_train.Y, train_var.Pred_BAG),
-        #                                       'R2_test':  r2_score(Y_test.Y, test_var.Pred_BAG),
-        #                                       'MSE_train': mean_squared_error(Y_train.Y, train_var.Pred_BAG),
-        #                                       'MSE_test':  mean_squared_error(Y_test.Y, test_var.Pred_BAG),
-        #                                       'MAE_train': mean_absolute_error(Y_train.Y, train_var.Pred_BAG),
-        #                                       'MAE_test':  mean_absolute_error(Y_test.Y, test_var.Pred_BAG)},
-        #                                      index=[str(number)])
+        bagging_metrics_df_aux = pd.DataFrame({'R2_train': r2_score(Y_train.Y, train_var.Pred_BAG),
+                                              'R2_test':  r2_score(Y_test.Y, test_var.Pred_BAG),
+                                              'MSE_train': mean_squared_error(Y_train.Y, train_var.Pred_BAG),
+                                              'MSE_test':  mean_squared_error(Y_test.Y, test_var.Pred_BAG),
+                                              'MAE_train': mean_absolute_error(Y_train.Y, train_var.Pred_BAG),
+                                              'MAE_test':  mean_absolute_error(Y_test.Y, test_var.Pred_BAG)},
+                                              index=[str(number)])
         
-        # bagging_metrics_df = bagging_metrics_df.append(bagging_metrics_df_aux)
+        bagging_metrics_df = bagging_metrics_df.append(bagging_metrics_df_aux)
         
-        # lr_dict['BAG'].update({number:{}})
-        # lr_dict['BAG'][number].update({'train_index':train_index,'test_index':test_index })
+        lr_dict['BAG'].update({number:{}})
+        lr_dict['BAG'][number].update({'train_index':train_index,'test_index':test_index })
 
         
         
@@ -968,11 +968,11 @@ def model_df(df_merged):
     randomforest_metrics_df_aux = randomforest_metrics_df.loc[randomforest_metrics_df[['MSE_test']].idxmin().item()].to_frame().transpose()
     randomforest_metrics_df_aux['Model'] = 'RF'
     
-    adaboosting_metrics_df_aux = adaboosting_metrics_df.loc[adaboosting_metrics_df[['MSE_test']].idxmin().item()].to_frame().transpose()
-    adaboosting_metrics_df_aux['Model'] = 'ADABOOSTING'    
-
     bagging_metrics_df_aux = bagging_metrics_df.loc[bagging_metrics_df[['MSE_test']].idxmin().item()].to_frame().transpose()
     bagging_metrics_df_aux['Model'] = 'BAGGING'
+    
+    adaboosting_metrics_df_aux = adaboosting_metrics_df.loc[adaboosting_metrics_df[['MSE_test']].idxmin().item()].to_frame().transpose()
+    adaboosting_metrics_df_aux['Model'] = 'ADABOOSTING'    
        
     gbm_metrics_df_aux = gbm_metrics_df.loc[gbm_metrics_df[['MSE_test']].idxmin().item()].to_frame().transpose()
     gbm_metrics_df_aux['Model'] = 'GBM'
@@ -1074,13 +1074,16 @@ def run_model(df_merged, model_choosen, model_metrics_df, lr_dict, test_run):
 
 
     coef_df=pd.DataFrame({'name':df_X.columns})
-
-    
+  
     if model_choosen=='OLS':
-     
-    
+        
             model = LinearRegression()
-            model_fit = model.fit(df_X, df_y)           
+            model_fit = model.fit(df_X, df_y)   
+            
+            df_X2 = sm.add_constant(df_X)
+            est = sm.OLS(df_y, df_X2)
+            est2 = est.fit()
+            print(est2.summary())
             
      
     if model_choosen=='LASSO':
@@ -1322,12 +1325,28 @@ def run_model(df_merged, model_choosen, model_metrics_df, lr_dict, test_run):
     final_model_metrics = pd.DataFrame({'R2': r2_score(df_y.Y, df_model.Pred_Y),
                                          'MSE': mean_squared_error(df_y.Y, df_model.Pred_Y),
                                          'MAE': mean_absolute_error(df_y.Y, df_model.Pred_Y),
-                                         'MODEL': 'BAGGING',
-                                         'ESTIMADORES':n_estimators,
-                                         'BOOTSTRAP': bootstrap},       
-                                        index=['BAGGING'])
+                                         'MODEL': model_choosen,
+                                          'ESTIMADORES':n_estimators,
+                                          'BOOTSTRAP': bootstrap
+                                         },       
+                                        index=[model_choosen])
     
-    print ('Erro na base teste eh', final_model_metrics['MSE'])
+    print ('Erro na base teste eh', round(final_model_metrics['MSE'].item(),2))
+    
+    #try plot RF tree
+    # if model_choosen=='RF':
+        
+    #     print('plot tree')        
+    
+    #     from sklearn import tree
+
+    #     fig, axes = plt.subplots(nrows = 1,ncols = 1,figsize = (4,4), dpi=800)
+    #     tree.plot_tree( model_fit.estimators_[5],
+    #                    # feature_names = fn, 
+    #                    # class_names=cn,
+    #                    filled = True)
+    #     fig.savefig('rf_individualtree.png')
+        
         
     return df_model, final_model_metrics, model_fit
 
@@ -1335,9 +1354,7 @@ def run_model(df_merged, model_choosen, model_metrics_df, lr_dict, test_run):
 
 def save_results(df_model, final_model_metrics, mode):
     
-    
-    import matplotlib.pyplot as plt
-    import statsmodels.api as sm
+
 
     if mode=='past':
 
@@ -1368,6 +1385,8 @@ def save_results(df_model, final_model_metrics, mode):
     # fig.tight_layout()    
     fig.savefig('./Dados CVM/Modelagem/Rentabilidade obs vs prevista - '+mode+'.png',bbox_inches='tight')     
     plt.show()
+    
+
         
 
     writer = pd.ExcelWriter(r'./Dados CVM/Modelagem/Modelagem - '+mode+'.xlsx')
@@ -1603,18 +1622,18 @@ if __name__=='__main__':
     df_merged = filter_dfs(df_fidc, df_rating, ipeaseries_dict, month_forescast, mode, remove_rentsub, remove_taxvar)
     
     # test_run=True  #True: precisa rodar o modelo todo de novo (demora horas)// 
-    # test_run=False #False: Ja pega o ultimo modelo que teve melhor performance e seus parametros
+    test_run=False #False: Ja pega o ultimo modelo que teve melhor performance e seus parametros
     
-    # if test_run==True:
-    #     model_choosen, model_metrics_df, lr_dict = model_df(df_merged)
-    # else:
-    #     os.chdir('/Users/pedrocampelo/Desktop/Work/FUNCEF/FIDCS/CVM/')
-    #     model_metrics_df = pd.read_excel('./Dados CVM/Modelagem/Modelagem.xlsx', sheet_name='Metricas')
-    #     model_choosen = model_metrics_df['MODEL'].item()
+    if test_run==True:
+        model_choosen, model_metrics_df, lr_dict = model_df(df_merged)
+    else:
+        os.chdir('/Users/pedrocampelo/Desktop/Work/FUNCEF/FIDCS/CVM/')
+        model_metrics_df = pd.read_excel('./Dados CVM/Modelagem/Modelagem.xlsx', sheet_name='Metricas')
+        model_choosen = model_metrics_df['MODEL'].item()
         
-    # df_model, final_model_metrics, model_fit = run_model(df_merged, model_choosen, model_metrics_df, lr_dict,test_run)
+    df_model, final_model_metrics, model_fit = run_model(df_merged, model_choosen, model_metrics_df, lr_dict,test_run)
     
-    # save_results(df_model, final_model_metrics, mode)   
+    save_results(df_model, final_model_metrics, mode)   
     
 
 
